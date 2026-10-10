@@ -1,0 +1,35 @@
+{
+  "seed": 2026,
+  "train": 876,
+  "val": 97,
+  "benchmark_total": 710,
+  "benchmark_hospital": 649,
+  "benchmark_iba_vignettes": 61,
+  "train_triage": {
+    "treat_monitor": 154,
+    "refer_now": 424,
+    "refer_24h": 298
+  },
+  "benchmark_hospital_triage": {
+    "refer_now": 312,
+    "refer_24h": 223,
+    "treat_monitor": 114
+  },
+  "benchmark_hospital_risk": {
+    "standard": 182,
+    "high": 467
+  },
+  "vignette_triage": {
+    "treat_monitor": 21,
+    "refer_now": 36,
+    "refer_24h": 4
+  },
+  "language_train": {
+    "en": 605,
+    "pcm": 271
+  },
+  "language_benchmark": {
+    "en": 499,
+    "pcm": 211
+  }
+}

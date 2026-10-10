@@ -1,0 +1,7 @@
+pandas>=2.0
+transformers>=4.46
+peft>=0.13
+bitsandbytes>=0.43
+accelerate>=0.34
+torch>=2.3
+huggingface_hub>=0.25
