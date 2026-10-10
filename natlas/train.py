@@ -8,11 +8,15 @@ chat template, so the adapter learns the output format and the triage mapping, n
 
 import argparse
 import json
+import os
 from pathlib import Path
 
-import torch
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from transformers import (
+# Must be set before CUDA initialises: reduces fragmentation on 16 GB cards.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+import torch  # noqa: E402
+from peft import LoraConfig, get_peft_model  # noqa: E402
+from transformers import (  # noqa: E402
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
@@ -84,6 +88,8 @@ def main() -> None:
     ap.add_argument("--epochs", type=float, default=2.0)
     ap.add_argument("--max-len", type=int, default=768)
     ap.add_argument("--lr", type=float, default=2e-4)
+    ap.add_argument("--batch", type=int, default=2)
+    ap.add_argument("--accum", type=int, default=8)
     args = ap.parse_args()
 
     tok = load_tokenizer(args.base)
@@ -95,11 +101,20 @@ def main() -> None:
     train, val = read("train"), read("val")
     print(f"train={len(train)} val={len(val)} max_tokens={max(len(x['input_ids']) for x in train)}")
 
-    model = prepare_model_for_kbit_training(load_4bit(args.base), use_gradient_checkpointing=True)
+    # Not peft's prepare_model_for_kbit_training: it upcasts the 128K-vocab embedding and
+    # lm_head to fp32 (~4 GB), which does not fit a 16 GB T4 next to the activations.
+    model = load_4bit(args.base)
+    model.config.use_cache = False
+    model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+    model.enable_input_require_grads()
     model = get_peft_model(model, LoraConfig(
         r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
     ))
+    # fp16 mixed precision needs fp32 master weights for the (small) trainable LoRA params.
+    for param in model.parameters():
+        if param.requires_grad:
+            param.data = param.data.float()
     model.print_trainable_parameters()
 
     trainer = Trainer(
@@ -107,9 +122,11 @@ def main() -> None:
         args=TrainingArguments(
             output_dir=args.out + "-ckpt",
             num_train_epochs=args.epochs,
-            per_device_train_batch_size=4,
-            per_device_eval_batch_size=4,
-            gradient_accumulation_steps=4,
+            per_device_train_batch_size=args.batch,
+            per_device_eval_batch_size=args.batch,
+            gradient_accumulation_steps=args.accum,
+            gradient_checkpointing=True,
+            gradient_checkpointing_kwargs={"use_reentrant": False},
             learning_rate=args.lr,
             lr_scheduler_type="cosine",
             warmup_steps=6,
