@@ -1,21 +1,21 @@
 {
   "version": "v2",
   "seed": 2026,
-  "synthetic_used": 562,
-  "synthetic_dropped_near_vignette": 18,
+  "synthetic_used": 698,
+  "synthetic_dropped_near_vignette": 26,
   "train_sources": {
-    "synthetic": 506,
-    "hospital": 876
+    "hospital": 876,
+    "synthetic": 628
   },
-  "train": 1382,
-  "val": 153,
+  "train": 1504,
+  "val": 167,
   "benchmark_total": 710,
   "benchmark_hospital": 649,
   "benchmark_iba_vignettes": 61,
   "train_triage": {
-    "treat_monitor": 293,
-    "refer_now": 791,
-    "refer_24h": 298
+    "treat_monitor": 287,
+    "refer_now": 898,
+    "refer_24h": 319
   },
   "benchmark_hospital_triage": {
     "refer_now": 312,
@@ -32,8 +32,8 @@
     "refer_24h": 4
   },
   "language_train": {
-    "en": 931,
-    "pcm": 451
+    "pcm": 506,
+    "en": 998
   },
   "language_benchmark": {
     "en": 499,

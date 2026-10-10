@@ -65,6 +65,44 @@ POSITIVE: dict[str, tuple[list[str], list[str]]] = {
     ),
 }
 
+# Urgent features that are not among the ten danger-sign codes. Labels follow WHO IMCI / NCDC
+# guidance (meningitis signs, severe dehydration, Lassa exposure); Ibà's text rules cover only
+# English dehydration wording, so these are NOT rule-checked and need clinical review.
+# feature -> (English, Pidgin, triage level, reason)
+URGENT: dict[str, tuple[list[str], list[str], str, str]] = {
+    "meningeal": (
+        ["neck stiff and painful to bend", "cannot bend the neck forward", "rigid neck"],
+        ["neck don stiff", "e no fit bend im neck"],
+        "refer_now", "Fever with a stiff neck: possible meningitis, refer now.",
+    ),
+    "fontanelle": (
+        ["soft spot on the head is bulging", "fontanelle is tense and raised"],
+        ["the soft part for im head don swell up"],
+        "refer_now", "Bulging fontanelle with fever: possible meningitis, refer now.",
+    ),
+    "non_blanching_rash": (
+        ["dark purple spots that do not fade when pressed", "rash that stays when a glass is pressed on it"],
+        ["purple spot for body wey no dey fade when you press am"],
+        "refer_now", "Rash that does not fade: possible meningococcal disease, refer now.",
+    ),
+    "severe_dehydration": (
+        ["watery stool many times, sunken eyes, skin pinch goes back very slowly",
+         "rice-water diarrhoea, eyes sunken, skin pinch slow to return"],
+        ["stool dey run like water, eye don sink, skin pinch dey go back slowly"],
+        "refer_now", "Signs of severe dehydration: refer now and start fluids per guideline.",
+    ),
+    "lassa_contact": (
+        ["nursed a confirmed Lassa fever patient last week", "lives with someone confirmed to have Lassa fever"],
+        ["e take care of person wey get Lassa fever last week"],
+        "refer_now", "Fever after contact with confirmed Lassa fever: isolate and refer now.",
+    ),
+    "no_response": (
+        ["took antimalarials for 3 days with no improvement", "fever persists after a full course of antimalarials"],
+        ["e don take malaria drug finish, fever no gree go"],
+        "refer_24h", "Fever not responding to antimalarials with a negative RDT: refer for further tests.",
+    ),
+}
+
 # No danger sign: negated or reassuring mentions of the same features.
 NEGATIVE: tuple[list[str], list[str]] = (
     ["no convulsions", "drinking well", "eating and drinking well", "alert and playful",
@@ -125,11 +163,30 @@ def make_case(rng: random.Random, signs: list[str], pidgin: bool) -> tuple[str, 
     return f"{who}, " + ", ".join(head + tail), _label(signs, rdt)
 
 
-def generate(n_single: int = 36, n_double: int = 60, n_none: int = 160,
+def make_urgent_case(rng: random.Random, feature: str, pidgin: bool) -> tuple[str, dict]:
+    en, pcm, level, reason = URGENT[feature]
+    who, _ = _person(rng, pidgin)
+    if feature == "fontanelle":  # infants only
+        who = "Pikin wey be 5 months" if pidgin else rng.choice(["Baby 5 months", "Infant 8 months"])
+    days = rng.randint(3, 7) if feature == "no_response" else rng.randint(1, 4)
+    rdt = "negative" if feature == "no_response" else rng.choice(["positive", "negative", "not_done"])
+    parts = [f"body dey hot {days} days" if pidgin else f"fever {days} days",
+             (RDT_PCM if pidgin else RDT_EN)[rdt], rng.choice(pcm if pidgin else en)]
+    parts += rng.sample(OTHER_PCM if pidgin else OTHER_EN, k=rng.randint(0, 1))
+    risk = "not_applicable" if rdt == "negative" else "standard"
+    return f"{who}, " + ", ".join(parts), {
+        "triage_level": level, "danger_signs": [], "malaria_risk": risk, "reason": reason}
+
+
+def generate(n_single: int = 36, n_double: int = 60, n_none: int = 160, n_urgent: int = 24,
              seed: int = 2027) -> list[tuple[str, dict]]:
-    """n_single cases per sign, n_double two-sign cases, n_none cases without danger signs."""
+    """n_single cases per sign, n_double two-sign cases, n_none cases without danger signs,
+    n_urgent cases per urgent non-sign feature."""
     rng = random.Random(seed)
     cases = []
+    for feature in URGENT:
+        for _ in range(n_urgent):
+            cases.append(make_urgent_case(rng, feature, rng.random() < 0.35))
     for sign in DANGER_SIGNS:
         for _ in range(n_single):
             cases.append(make_case(rng, [sign], rng.random() < 0.35))
