@@ -9,7 +9,44 @@ patient, in English or Nigerian Pidgin, and return a structured triage decision:
 danger signs, malaria risk and a one-line reason. It is the model behind the Ibà fever-triage
 copilot. **Decision support, not diagnosis: a clinician always decides.**
 
-> Status: work in progress (October 2026). Benchmark numbers are added after the run.
+## Results (710-case held-out benchmark)
+
+| | Base N-ATLaS | Ibà-ATLAS v1 | **Ibà-ATLAS v2** |
+|---|---|---|---|
+| **Under-triage, all 710** (lower is better) | 23.1% | 5.9% | **3.5%** |
+| Exact triage, all 710 | 50.6% | 86.1% | **93.5%** |
+| Refer-now recall | 77.6% | 92.2% | **97.4%** |
+| Danger-sign recall / precision | 17.3% / 19.3% | 93.0% / 99.1% | **100% / 98.8%** |
+| Valid JSON | 99.9% | 100% | **100%** |
+| **Under-triage, 61 Nigerian vignettes** | 31.1% | 44.3% | **18.0%** |
+| Exact triage, vignettes | 68.9% | 37.7% | **80.3%** |
+| Under-triage, Pidgin cases (211) | 31.3% | 4.3% | **1.9%** |
+
+Full tables: [results/report.md](results/report.md) (overall, per source, per language) and
+[results/vignette_categories.md](results/vignette_categories.md). Raw model outputs for every
+case are in `results/preds_*.jsonl`; `python -m natlas.score` recomputes every number.
+
+**What happened between v1 and v2.** v1 trained only on the hospital records, whose single
+danger sign is confusion. It improved sharply on held-out hospital records but got *worse* on
+the Nigerian vignettes (under-triage 31% → 44%): it had learned that confusion is the only
+danger sign. v2 adds 628 synthetic worker-style cases covering all ten danger signs and urgent
+features without a danger-sign code (stiff neck, bulging fontanelle, non-fading rash, severe
+dehydration, Lassa exposure), in English and Pidgin, plus hard negatives. Every phrase is
+checked against Ibà's deterministic danger-sign rules, and 26 generated cases too similar to a
+vignette were dropped. v2 fixed severe malaria (6/10 → 10/10 correct) and paediatric danger
+signs (2/6 → 6/6) without over-triaging uncomplicated malaria (10/10 kept).
+
+**Caveat on method.** The *categories* added in v2 were chosen after seeing where v1 failed on
+the vignettes. No vignette text or near-copy was trained on, but the vignette set is therefore
+no longer a fully blind test for v2. A fresh, clinician-written test set is the next step.
+
+**Remaining misses (v2, 11 of 61):** 7 suspected-Lassa cases where the gold label assumes an
+active outbreak in the patient's state. A text-only model cannot know that; in the app, the live
+outbreak search and Lassa case-definition rules escalate these. Also 2 prolonged-fever cases
+(possible typhoid/TB), 1 meningitis case and 1 Pidgin case.
+
+> Status: October 2026. Gold labels for the vignettes and for the v0 hospital-record triage
+> mapping are pending review by the clinical lead.
 
 ## Why fine-tune
 
@@ -22,6 +59,7 @@ actually write, including Pidgin. The benchmark measures exactly these against b
 | Set | Source | Size |
 |---|---|---|
 | Train / val | De-identified hospital malaria admissions (Kaggle `programmer3/malaria-diagnosis-dataset`), as used in our malaria-llm-cdss study | 876 / 97 |
+| Train / val (v2 only) | Synthetic worker-style cases: ten danger signs, urgent features, hard negatives (`natlas/augment.py`) | 628 / 70 |
 | Benchmark A | Held-out records from the same dataset (never trained on) | 649 |
 | Benchmark B | Ibà's synthetic Nigerian fever vignettes (malaria, Lassa, cholera, meningitis, paediatric danger signs, Pidgin) | 61 |
 | **Benchmark total** | | **710** |

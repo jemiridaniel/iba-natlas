@@ -102,5 +102,57 @@
       "danger_sign_precision_pct": 66.7,
       "malaria_risk_acc_pct": null
     }
+  },
+  "ft_v2": {
+    "all": {
+      "n": 710,
+      "valid_json_pct": 100.0,
+      "triage_exact_pct": 93.5,
+      "under_triage_pct": 3.5,
+      "refer_now_recall_pct": 97.4,
+      "danger_sign_recall_pct": 100.0,
+      "danger_sign_precision_pct": 98.8,
+      "malaria_risk_acc_pct": 89.7
+    },
+    "hospital": {
+      "n": 649,
+      "valid_json_pct": 100.0,
+      "triage_exact_pct": 94.8,
+      "under_triage_pct": 2.2,
+      "refer_now_recall_pct": 100.0,
+      "danger_sign_recall_pct": 100.0,
+      "danger_sign_precision_pct": 100.0,
+      "malaria_risk_acc_pct": 89.7
+    },
+    "lang_en": {
+      "n": 499,
+      "valid_json_pct": 100.0,
+      "triage_exact_pct": 92.8,
+      "under_triage_pct": 4.2,
+      "refer_now_recall_pct": 96.7,
+      "danger_sign_recall_pct": 100.0,
+      "danger_sign_precision_pct": 98.3,
+      "malaria_risk_acc_pct": 90.0
+    },
+    "lang_pcm": {
+      "n": 211,
+      "valid_json_pct": 100.0,
+      "triage_exact_pct": 95.3,
+      "under_triage_pct": 1.9,
+      "refer_now_recall_pct": 99.0,
+      "danger_sign_recall_pct": 100.0,
+      "danger_sign_precision_pct": 100.0,
+      "malaria_risk_acc_pct": 88.9
+    },
+    "iba_vignette": {
+      "n": 61,
+      "valid_json_pct": 100.0,
+      "triage_exact_pct": 80.3,
+      "under_triage_pct": 18.0,
+      "refer_now_recall_pct": 75.0,
+      "danger_sign_recall_pct": 100.0,
+      "danger_sign_precision_pct": 88.2,
+      "malaria_risk_acc_pct": null
+    }
   }
 }
