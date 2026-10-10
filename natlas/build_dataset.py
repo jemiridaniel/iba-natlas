@@ -23,8 +23,14 @@ Outputs (data/processed/)
   benchmark.jsonl                   649 held-out hospital records + 61 Ibà vignettes (710)
   dataset_card.json                 counts and label distributions
 
-Run: python -m natlas.build_dataset
+v2 (default) also trains on synthetic worker-style cases covering all ten danger signs, plus
+hard negatives (natlas/augment.py), checked against Ibà's danger-sign rules and screened against
+the vignettes. The benchmark is identical in v1 and v2.
+
+Run: python -m natlas.build_dataset [--version v1|v2]
 """
+
+import argparse
 
 import json
 import random
@@ -33,6 +39,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from natlas.augment import generate, too_close
 from natlas.prompts import SYSTEM_PROMPT
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -107,6 +114,9 @@ def chat_example(text: str, label: dict) -> dict:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--version", choices=["v1", "v2"], default="v2")
+    version = ap.parse_args().version
     rng = random.Random(SEED)
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -147,6 +157,21 @@ def main() -> None:
                      "malaria_risk": None, "reason": None},
         })
 
+    synthetic, dropped = [], 0
+    if version == "v2":
+        held_out = [v["text"] for v in vignettes]
+        for i, (text, gold) in enumerate(generate()):
+            if too_close(text, held_out):
+                dropped += 1
+                continue
+            synthetic.append({"id": f"syn-{i:04d}", "source": "synthetic", "language": "pcm"
+                              if " dey " in f" {text} " or "wey be" in text else "en",
+                              "text": text, "gold": gold})
+        n_syn_val = round(len(synthetic) * VAL_FRACTION)
+        val = val + synthetic[:n_syn_val]
+        train = train + synthetic[n_syn_val:]
+        random.Random(SEED).shuffle(train)
+
     for name, rows in [("train", train), ("val", val)]:
         with open(OUT / f"{name}.jsonl", "w") as f:
             for r in rows:
@@ -156,7 +181,11 @@ def main() -> None:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     card = {
+        "version": version,
         "seed": SEED,
+        "synthetic_used": len(synthetic),
+        "synthetic_dropped_near_vignette": dropped,
+        "train_sources": Counter(r["source"] for r in train),
         "train": len(train), "val": len(val),
         "benchmark_total": len(test) + len(vignettes),
         "benchmark_hospital": len(test), "benchmark_iba_vignettes": len(vignettes),
