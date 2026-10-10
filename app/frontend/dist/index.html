@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#115e59" />
+    <meta name="description" content="Ibà: fever-triage decision support for primary health workers. Not a diagnosis." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ibà" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1290x2796.png"
+          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1179x2556.png"
+          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1284x2778.png"
+          media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1170x2532.png"
+          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-1125x2436.png"
+          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-828x1792.png"
+          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/launch-750x1334.png"
+          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <title>Ibà · Fever Triage</title>
+    <style>
+      /* Launch screen: inline, no external fonts or images, so it paints before the bundle.
+         The mark is assembled on screen: the stem drops and lands, the dot bounces off the
+         top of the stem and settles into its gap, then the wordmark fades in (~1,400 ms).
+         Geometry matches icon.svg: dot bottom = 11.9 + 4.9 = 16.8, stem top = 20.8, so the
+         dot travels 4 user units past its resting place to touch the stem.
+         Only transform and opacity are animated (cheap on low-end Android). */
+      #launch {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #115e59;
+        color: #fff;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+        text-align: center;
+        padding: 24px;
+        opacity: 1;
+        transition: opacity 300ms ease-out;
+        /* Feel native to the tap: no text selection or magnifier, no grey flash, and no
+           pull-to-refresh if the worker swipes down while waiting. */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior: contain;
+      }
+      /* Fading out: let taps reach the app underneath instead of hitting a dying overlay. */
+      #launch.iba-hide { opacity: 0; pointer-events: none; }
+      #launch .iba-logo { width: 88px; height: 88px; overflow: visible; }
+      #launch .iba-word { font-size: 40px; font-weight: 800; letter-spacing: -0.02em; }
+      #launch .iba-tag { font-size: 15px; line-height: 1.4; max-width: 18rem; opacity: 0.85; }
+
+      #launch .iba-stem,
+      #launch .iba-dot,
+      #launch .iba-dot-idle {
+        transform-box: view-box;
+      }
+      /* bottom-centre origins: squash compresses towards the ground */
+      #launch .iba-stem { transform-origin: 32px 42.4px; animation: iba-stem 450ms both; }
+      #launch .iba-dot { transform-origin: 32px 16.8px; animation: iba-dot 1020ms 380ms both; }
+      #launch .iba-dot-idle {
+        transform-origin: 32px 16.8px;
+        animation: iba-idle 1200ms 1400ms infinite both;
+      }
+      #launch .iba-word,
+      #launch .iba-tag {
+        opacity: 0;
+        animation: iba-rise 250ms 1150ms ease-out both;
+      }
+      #launch .iba-tag { animation-delay: 1250ms; }
+      /* the app has mounted: stop the idle hop */
+      #launch.iba-mounted .iba-dot-idle { animation: none; }
+
+      @keyframes iba-stem {
+        0% { transform: translateY(-46px) scaleY(1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        62% { transform: translateY(0) scaleY(1); animation-timing-function: ease-out; }
+        76% { transform: translateY(0) scale(1.07, 0.92); animation-timing-function: ease-in-out; }
+        88% { transform: translateY(0) scale(0.98, 1.03); }
+        100% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-dot {
+        /* fall */
+        0% { transform: translateY(-46px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        /* impact 1: touches the stem (4px past rest), squash */
+        26% { transform: translateY(4px) scale(1.25, 0.75); animation-timing-function: ease-out; }
+        30% { transform: translateY(-6px) scale(0.88, 1.12); animation-timing-function: ease-out; }
+        /* apex 1 (~60% of the drop) */
+        44% { transform: translateY(-26px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        58% { transform: translateY(4px) scale(1.2, 0.8); animation-timing-function: ease-out; }
+        62% { transform: translateY(-2px) scale(0.92, 1.08); animation-timing-function: ease-out; }
+        /* apex 2 (~25%) */
+        70% { transform: translateY(-8.5px) scale(1, 1); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        80% { transform: translateY(4px) scale(1.15, 0.85); animation-timing-function: ease-out; }
+        /* apex 3 (~8%) */
+        87% { transform: translateY(0) scale(0.96, 1.04); animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+        93% { transform: translateY(4px) scale(1.08, 0.92); animation-timing-function: ease-out; }
+        100% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-idle {
+        0%, 62%, 100% { transform: translateY(0) scale(1, 1); }
+        10% { transform: translateY(-3px) scale(0.96, 1.04); animation-timing-function: ease-in; }
+        22% { transform: translateY(4px) scale(1.12, 0.88); animation-timing-function: ease-out; }
+        34% { transform: translateY(0) scale(1, 1); }
+      }
+      @keyframes iba-rise {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #launch { background: #0b3d3a; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        /* show the finished logo and wordmark, no motion at all */
+        #launch { transition: none; }
+        #launch .iba-stem,
+        #launch .iba-dot,
+        #launch .iba-dot-idle,
+        #launch .iba-word,
+        #launch .iba-tag {
+          animation: none;
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-BSkAl_es.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-BbJfwnO8.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Print target for the referral note (see PrintableNote in ResultCard.tsx). Sits
+         outside #root so print CSS can collapse the whole app to nothing and let this render
+         in normal flow at the top of page 1, instead of wherever it happened to scroll to. -->
+    <div id="print-root"></div>
+    <div id="launch" role="status" aria-live="polite" aria-label="Ibà is starting">
+      <svg class="iba-logo" viewBox="0 0 64 64" role="img" aria-label="Ibà is loading">
+        <rect width="64" height="64" rx="14" fill="#0d4e4a" />
+        <g class="iba-dot-idle">
+          <g class="iba-dot"><circle cx="32" cy="11.9" r="4.9" fill="#fff" /></g>
+        </g>
+        <g class="iba-stem">
+          <rect x="27.1" y="20.8" width="9.8" height="21.6" rx="4.9" fill="#fff" />
+        </g>
+      </svg>
+      <div class="iba-word">Ibà</div>
+      <div class="iba-tag">Fever triage for primary health workers</div>
+    </div>
+    <script>
+      // Runs before the bundle: note first paint, allow tap-to-dismiss, and keep a hard
+      // safety timeout so the launch screen can never block the app.
+      window.__ibaLaunchStart = Date.now();
+      (function () {
+        var el = document.getElementById("launch");
+        if (el) {
+          el.addEventListener("click", function () {
+            el.remove();
+          });
+        }
+        window.__ibaLaunchTimer = setTimeout(function () {
+          if (el) el.remove();
+        }, 4000);
+      })();
+    </script>
+  </body>
+</html>

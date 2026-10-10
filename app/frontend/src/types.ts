@@ -1,0 +1,219 @@
+// Mirrors backend/app/schemas.py (the subset the UI uses).
+
+export type TriageLevel = "refer_now" | "refer_24h" | "treat_monitor";
+
+export interface DangerSignHit {
+  code: string;
+  label: string;
+  source: "rule" | "llm_intake" | "llm_reason" | "llm_atlas";
+  evidence?: string | null;
+}
+
+export interface PatientCase {
+  age_years?: number | null;
+  sex?: "male" | "female" | null;
+  weight_kg?: number | null;
+  pregnant?: boolean | null;
+  fever_days?: number | null;
+  temperature_c?: number | null;
+  rdt_result?: "positive" | "negative" | "not_done" | null;
+  symptoms: string[];
+  state?: string | null;
+  lga?: string | null;
+}
+
+export interface FollowUpQuestion {
+  id: string;
+  text: string;
+}
+
+export interface FollowUpAnswer {
+  id: string;
+  answer: string;
+}
+
+export interface OutbreakSignal {
+  disease: string;
+  state: string;
+  status: string;
+  report_date?: string | null;
+  url?: string | null;
+  // How far the report's date can be trusted. Only "current" may escalate triage.
+  recency?: "current" | "older" | "unknown";
+  basis: "live" | "baseline";
+  in_season?: boolean | null;
+  citation?: string | null;
+  // Baseline only: which of the two tiers this state is in. high_burden may drive a
+  // deterministic escalation rule; reported informs the differential only.
+  tier?: "high_burden" | "reported" | null;
+  confirmed?: boolean; // false = carried over, not confirmed by the cited report
+  report?: string | null; // which NCDC situation report named this state
+  epi_week?: string | null;
+  page?: number | null;
+}
+
+export interface OutbreakContext {
+  status: "ok" | "unavailable";
+  source: "tavily" | "mock" | "none";
+  message: string;
+  checked_at?: string | null;
+  signals: OutbreakSignal[];
+  baseline: OutbreakSignal[];
+}
+
+export interface Evidence {
+  status: "verified" | "unsupported" | "patient" | "rule";
+  chunk_id?: string | null;
+  quote?: string | null;
+  score?: number | null;
+}
+
+export interface Reason {
+  text: string;
+  evidence: Evidence;
+}
+
+export interface DifferentialItem {
+  condition: string;
+  likelihood: "high" | "moderate" | "low";
+  reasons: Reason[];
+  check_next: string[];
+  citations: string[];
+  source: "llm" | "rule";
+}
+
+export interface ActionItem {
+  text: string;
+  citations: string[];
+  source: "llm" | "rule";
+  details: Reason[];
+  evidence?: Evidence | null;
+}
+
+export interface Citation {
+  kind: "guideline" | "outbreak";
+  ref: string;
+  title?: string | null;
+  doc_id?: string | null;
+  section?: string | null;
+  page?: number | null;
+  page_end?: number | null;
+  url?: string | null;
+  source_date?: string | null;
+  excerpt?: string | null;
+}
+
+export interface DoseRecommendation {
+  drug: string;
+  regimen: string;
+  weight_band: string;
+  strength: string; // e.g. "20/120"
+  is_default: boolean; // shown first; others are labelled alternatives
+  verified: boolean;
+  citation: Citation;
+}
+
+export interface GuidelineNote {
+  text: string;
+  citation: Citation;
+}
+
+export interface TraceStep {
+  step: string;
+  kind: "llm" | "rules" | "retrieval" | "tool";
+  model?: string | null;
+  reasoning?: boolean | null;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens?: number | null;
+  latency_ms: number;
+  model_latency_ms?: number | null;
+  cost_usd?: number | null;
+  cached: boolean;
+  note?: string | null;
+}
+
+export interface DecisionTrace {
+  steps: TraceStep[];
+  wall_ms?: number | null;
+  total_latency_ms: number;
+  total_tokens: number;
+  total_cost_usd: number;
+}
+
+/** Ibà-ATLAS: N-ATLAS fine-tuned for triage. Can raise urgency, never lower it. */
+export interface AtlasTriage {
+  triage_level: TriageLevel;
+  danger_signs: string[];
+  malaria_risk?: "high" | "standard" | "not_applicable" | null;
+  reason: string;
+}
+
+export type PatientLanguage = "yo" | "ha" | "ig";
+
+export interface PatientExplanation {
+  language: PatientLanguage;
+  text: string;
+}
+
+export interface TriageResult {
+  status: "complete" | "needs_info" | "incomplete";
+  triage_level?: TriageLevel | null;
+  triage_label?: string | null;
+  triage_rationale?: string | null;
+  questions: FollowUpQuestion[];
+  case?: PatientCase | null;
+  danger_signs: DangerSignHit[];
+  lassa_suspected: boolean;
+  outbreak?: OutbreakContext | null;
+  differential: DifferentialItem[];
+  actions: ActionItem[];
+  doses: DoseRecommendation[];
+  dosing_notes: GuidelineNote[];
+  citations: Citation[];
+  summary?: string | null;
+  referral_note?: string | null;
+  warnings: string[];
+  atlas?: AtlasTriage | null;
+  patient_explanation?: PatientExplanation | null;
+  disclaimer: string;
+  decision_trace: DecisionTrace;
+}
+
+export interface TriageRequest {
+  text: string;
+  state?: string | null;
+  answers?: FollowUpAnswer[];
+  skip_questions?: boolean;
+  patient_language?: PatientLanguage | null;
+}
+
+/** Partial result assembled from stream events as they arrive. */
+export interface LiveRun {
+  done: string[]; // node names finished so far
+  questions?: FollowUpQuestion[];
+  floor?: TriageLevel | null;
+  floorLabel?: string | null;
+  floorReasons?: string[];
+  dangerSigns?: DangerSignHit[];
+  outbreak?: OutbreakContext;
+  post?: Omit<TriageResult, "questions" | "disclaimer" | "decision_trace" | "outbreak">;
+  summary?: string | null;
+  referralNote?: string | null;
+  atlas?: AtlasTriage | null;
+  explanation?: PatientExplanation | null;
+  trace: TraceStep[];
+  final?: TriageResult;
+  error?: { fatal: boolean; message: string };
+}
+
+export interface Meta {
+  models: Record<string, string>;
+  reasoning: Record<string, boolean>;
+  sources: { doc_id: string; title: string; edition?: string; url?: string; licence?: string; licence_note?: string }[];
+  index: { chunks: number; model?: string | null };
+  live_outbreak_search?: string | null;
+  dose_table_verified: boolean;
+  endemicity_verified: boolean;
+}

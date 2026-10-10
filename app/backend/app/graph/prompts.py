@@ -1,0 +1,365 @@
+"""Prompt builders for the LLM steps. Every system prompt starts with "Task: <step>"."""
+
+import json
+
+from backend.app.graph.state import (
+    ComposeOutput,
+    ExplainOutput,
+    PostOutput,
+    ReasonOutput,
+    RuleSnapshot,
+    TriageRequest,
+)
+from backend.app.rules.danger_signs import _norm_state
+from backend.app.schemas import (
+    PATIENT_LANGUAGES,
+    TRIAGE_LABELS,
+    DangerSignCode,
+    FollowUpQuestion,
+    OutbreakContext,
+    OutbreakSignal,
+    PatientCase,
+    TriageLevel,
+)
+
+# Show whole chunks (median ~2,850 chars): truncating at 1,200 hid over half of each passage,
+# so the model cited chunks whose supporting text it never saw.
+MAX_CHUNK_CHARS = 3400
+
+# Critical fields and their follow-up questions (fixed wording, English / Nigerian Pidgin).
+FOLLOW_UPS: dict[str, dict[str, str]] = {
+    "age_years": {
+        "en": "How old is the patient?",
+        "pcm": "How old the patient be?",
+    },
+    "fever_days": {
+        "en": "How many days has the fever lasted?",
+        "pcm": "How many days the body don dey hot?",
+    },
+    "rdt_result": {
+        "en": "What was the malaria RDT result: positive, negative, or not done?",
+        "pcm": "Wetin malaria RDT show: positive, negative, or dem never do am?",
+    },
+    "treatment_response": {
+        "en": "Has the patient taken antimalarials or antibiotics for this fever? "
+        "Did the fever get better?",
+        "pcm": "The patient don take malaria drug or antibiotic for this fever? "
+        "The fever don reduce?",
+    },
+}
+
+
+def follow_up(field: str, language: str) -> FollowUpQuestion:
+    return FollowUpQuestion(id=field, text=FOLLOW_UPS[field]["pcm" if language == "pcm" else "en"])
+
+
+def _schema_for_prompt(model: type, drop: tuple[str, ...] = ()) -> str:
+    schema = model.model_json_schema()
+    for field in drop:
+        schema.get("properties", {}).pop(field, None)
+    return json.dumps(schema, separators=(",", ":"))
+
+
+def full_text(req: TriageRequest) -> str:
+    """The worker's words plus any follow-up answers (feeds intake and the text rules)."""
+    if not req.answers:
+        return req.text
+    lines = [req.text, "", "Follow-up answers:"]
+    for a in req.answers:
+        question = FOLLOW_UPS.get(a.id, {}).get("en", a.id)
+        lines.append(f"- {question} {a.answer}")
+    return "\n".join(lines)
+
+
+# --- intake -----------------------------------------------------------------
+
+INTAKE_SYSTEM = """Task: intake.
+Convert a primary health care worker's description of a febrile patient (English or \
+Nigerian Pidgin) into ONE JSON object matching the schema below. Reply with the JSON only.
+- Use null for anything not stated. Never guess.
+- age_years: convert months to years (e.g. 18 months -> 1.5).
+- fever_days: duration of fever in days ("hot body 4 days" -> 4).
+- symptoms: short English phrases for what is described.
+- danger_signs: only codes from the schema's enum, only when clearly described.
+- antimalarial_taken / antibiotic_taken: true or false only if stated.
+- antimalarial_no_response / antibiotic_no_response: true only if that treatment was taken \
+and the fever did not improve; false if it improved.
+- language: "pcm" if the text is Nigerian Pidgin, else "en".
+Schema:
+"""
+
+
+def intake_messages(req: TriageRequest) -> list[dict[str, str]]:
+    schema = _schema_for_prompt(PatientCase, drop=("raw_text", "missing_fields", "state", "lga"))
+    return [
+        {"role": "system", "content": INTAKE_SYSTEM + schema},
+        {"role": "user", "content": full_text(req)},
+    ]
+
+
+# --- reason -----------------------------------------------------------------
+
+REASON_SYSTEM = """Task: reason.
+You are clinical decision support for a primary health care worker (CHEW or nurse) at a \
+primary health centre in Nigeria. You do not diagnose; a human clinician decides.
+Given the case, the deterministic rule findings, guideline excerpts (each with an ID) and \
+current outbreak signals (each with a URL), reply with ONE JSON object matching the schema.
+
+Hard rules:
+1. NEVER write drug doses, strengths, amounts or frequencies (no mg, ml, tablet counts, \
+"twice daily"). Name the drug or treatment only; doses come from a separate verified table.
+2. EVIDENCE. Every action and every differential reason carries its evidence:
+   - A reason that restates the patient's own findings (age, days of fever, RDT result, \
+symptoms, state) has basis "patient" and no chunk_id or quote.
+   - Every other reason, and every action, has basis "guideline", a chunk_id copied exactly \
+from the excerpts below, and an evidence_quote: a VERBATIM span of 8 to 40 consecutive words \
+copied character-for-character from that excerpt, which directly supports the claim.
+   - If no excerpt supports a claim, set chunk_id and evidence_quote to null. Do not \
+paraphrase in a quote, do not stitch fragments together, never invent a chunk_id.
+   Example action: {"text": "Keep the patient in a separate holding area", "chunk_id": \
+"ncdc-lassa:0004", "evidence_quote": "Put patient in a holding area and institute infection \
+prevention measures"}
+3. If the rules found danger signs, triage_level must be "refer_now". You may raise the \
+triage level above the rule floor, never lower it.
+4. Weigh active outbreaks (live) and baseline endemicity in the patient's state. If a \
+disease that is active or endemic there fits the presentation, include it in the \
+differential and give its isolation/referral steps. Live signals weigh more than baseline.
+5. differential: 2-4 conditions, most likely first, each with reasons (patient findings and \
+guideline criteria, each a separate reason) and what to check next.
+6. actions: short, concrete steps the health worker can take now.
+7. triage_level: "refer_now" (emergency), "refer_24h" (needs facility review within a day), \
+or "treat_monitor" (manage at the PHC with review).
+
+Schema:
+"""
+
+
+def _signal_line(sig: OutbreakSignal) -> str:
+    """One signal, with how far its date can be trusted spelled out (FEEDBACK T1)."""
+    if sig.recency == "unknown":
+        when = "report date unknown - do NOT treat as current"
+    elif sig.recency == "older":
+        when = f"older report, {sig.report_date} - do NOT treat as current"
+    else:
+        when = f"reported {sig.report_date}"
+    return f"- {sig.disease} in {sig.state}: {sig.status}, {when} [{sig.url}]"
+
+
+def _signal_groups(signals: list[OutbreakSignal], state: str | None) -> str:
+    """Split live signals by whether they are in the patient's own state (FEEDBACK T3).
+
+    NCDC sitreps are national, so a search for one state returns outbreaks in several. Only
+    the patient's own state can raise the triage level; the rest are context.
+    """
+    target = _norm_state(state) if state else None
+    here = [s for s in signals if target and _norm_state(s.state) == target]
+    elsewhere = [s for s in signals if s not in here]
+    blocks = [
+        f"IN THIS PATIENT'S STATE ({state or 'unknown'}):\n"
+        + ("\n".join(_signal_line(s) for s in here) if here else "- none reported")
+    ]
+    if elsewhere:
+        blocks.append(
+            "ELSEWHERE IN NIGERIA (context only - these must NOT raise this patient's triage "
+            "level or be described as local):\n" + "\n".join(_signal_line(s) for s in elsewhere)
+        )
+    return "\n\n".join(blocks)
+
+
+def _baseline_line(s: OutbreakSignal) -> str:
+    source = f"{s.report}, {s.epi_week}" + (f", p.{s.page}" if s.page else "")
+    when = f" ({source}" + (", older surveillance" if s.recency == "older" else "") + ")"
+    line = f"- {s.disease}: {s.state} is a reported area" + when
+    if s.in_season:
+        line += " -- currently its usual peak season"
+    if not s.confirmed:
+        line += " -- NOT independently confirmed by this report (carried over; not ruled out)"
+    if s.citation:
+        line += f" [{s.citation}]"
+    return line
+
+
+def _baseline_text(baseline: list[OutbreakSignal]) -> str:
+    """Baseline endemicity, grouped by tier (same split as live signals, FEEDBACK T3-style).
+
+    high_burden may support a rule-based escalation (Lassa's baseline branch); reported is
+    context only and must never be treated as grounds to escalate on its own.
+    """
+    if not baseline:
+        return "None listed for this state."
+    high = [s for s in baseline if s.tier == "high_burden"]
+    reported = [s for s in baseline if s.tier == "reported"]
+    blocks = []
+    if high:
+        blocks.append(
+            "HIGH-BURDEN (may support referral):\n" + "\n".join(_baseline_line(s) for s in high)
+        )
+    if reported:
+        blocks.append(
+            "REPORTED (context only -- do NOT treat as grounds to escalate by itself):\n"
+            + "\n".join(_baseline_line(s) for s in reported)
+        )
+    return "\n\n".join(blocks)
+
+
+def reason_messages(
+    case: PatientCase,
+    pre: RuleSnapshot,
+    hits: list,
+    outbreak: OutbreakContext | None,
+) -> list[dict[str, str]]:
+    """`hits` are Passages (chunk + relevant window) or SearchHits (whole chunk, capped)."""
+    excerpts = [
+        f"[{h.chunk.id}] {h.chunk.title}"
+        + (f" | {h.chunk.section}" if h.chunk.section else "")
+        + f" (p.{h.chunk.page})\n{getattr(h, 'text', None) or h.chunk.text[:MAX_CHUNK_CHARS]}"
+        for h in hits
+    ]
+    if outbreak is None or outbreak.status != "ok":
+        outbreak_text = "Live outbreak data unavailable. Do not assume any live outbreak status."
+    elif not outbreak.signals:
+        outbreak_text = "Checked; no current outbreak signals found for this state."
+    else:
+        outbreak_text = _signal_groups(outbreak.signals, case.state)
+    baseline = outbreak.baseline if outbreak is not None else []
+    baseline_text = _baseline_text(baseline)
+    rules = {
+        "danger_signs": [h.label for h in pre.danger_signs],
+        "triage_floor": pre.floor.value if pre.floor else None,
+    }
+    user = (
+        f"CASE:\n{case.model_dump_json(exclude_none=True)}\n\n"
+        f"RULE FINDINGS:\n{json.dumps(rules)}\n\n"
+        f"LIVE OUTBREAK SIGNALS:\n{outbreak_text}\n\n"
+        f"BASELINE ENDEMICITY (static, not live):\n{baseline_text}\n\n"
+        "GUIDELINE EXCERPTS:\n" + ("\n\n".join(excerpts) if excerpts else "None available.")
+    )
+    return [
+        {"role": "system", "content": REASON_SYSTEM + _schema_for_prompt(ReasonOutput)},
+        {"role": "user", "content": user},
+    ]
+
+
+# --- compose ----------------------------------------------------------------
+
+COMPOSE_SYSTEM = """Task: compose.
+Write for a primary health care worker in Nigeria. Reply with ONE JSON object:
+{"summary": str, "referral_note": str}
+Write both fields in {language}.
+- summary: 2-4 short, plain sentences: the triage decision, why, and the next steps.
+- referral_note: a note for the receiving facility (or, if not referred, a short care note \
+for the patient record): age, key findings, danger signs, triage decision, likely \
+conditions, actions advised, and outbreak context if relevant.
+- Never include patient names or identifiers.
+- Actions are ADVISED steps. Never state that an action was done (e.g. "patient isolated", \
+"officer notified") unless the health worker's description says it was done.
+- NEVER write drug doses, amounts or frequencies. Doses are appended separately.
+- Do not change or soften the triage decision."""
+
+LANGUAGE_NAMES = {"en": "clear, simple English", "pcm": "Nigerian Pidgin"}
+
+
+def compose_messages(case: PatientCase, post: PostOutput) -> list[dict[str, str]]:
+    system = COMPOSE_SYSTEM.replace("{language}", LANGUAGE_NAMES.get(case.language, "English"))
+    payload = {
+        "triage_decision": TRIAGE_LABELS[post.triage_level],
+        "rationale": post.triage_rationale,
+        "case": case.model_dump(exclude_none=True, exclude={"missing_fields"}),
+        "danger_signs": [h.label for h in post.danger_signs],
+        "lassa_suspected": post.lassa_suspected,
+        "differential": [
+            {
+                "condition": d.condition,
+                "likelihood": d.likelihood,
+                "reasons": [r.text for r in d.reasons],
+            }
+            for d in post.differential
+        ],
+        "actions": [a.text for a in post.actions],
+    }
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False, default=str)},
+    ]
+
+
+# --- Ibà-ATLAS (fine-tuned N-ATLAS) ---------------------------------------------
+
+# Must match natlas/prompts.py SYSTEM_PROMPT exactly: the adapter was trained on this text
+# (tests/test_atlas.py checks they are identical).
+_ATLAS_LEVELS = ["refer_now", "refer_24h", "treat_monitor"]
+_ATLAS_SIGNS = [
+    "lethargy_or_unconsciousness",
+    "convulsions",
+    "unable_to_drink_or_breastfeed",
+    "vomiting_everything",
+    "prostration",
+    "respiratory_distress",
+    "dark_urine",
+    "jaundice",
+    "bleeding",
+    "severe_pallor",
+]
+assert set(_ATLAS_LEVELS) == {lvl.value for lvl in TriageLevel}
+assert set(_ATLAS_SIGNS) == {c.value for c in DangerSignCode}
+
+ATLAS_SYSTEM = "\n".join(
+    [
+        "You are Ibà, a fever-triage assistant for primary health care workers in Nigeria.",
+        "The worker describes a febrile patient in English or Nigerian Pidgin.",
+        "Reply with ONE JSON object and nothing else, with these keys:",
+        f'- "triage_level": one of {_ATLAS_LEVELS}',
+        f'- "danger_signs": list drawn only from {_ATLAS_SIGNS} (empty list if none)',
+        '- "malaria_risk": "high", "standard", or "not_applicable" '
+        "(not_applicable when malaria is unlikely)",
+        '- "reason": one short sentence for the health worker',
+        'Rules: any danger sign means "refer_now". Never give drug doses. '
+        "You support, a clinician decides.",
+    ]
+)
+
+
+def atlas_messages(req: TriageRequest) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": ATLAS_SYSTEM},
+        {"role": "user", "content": full_text(req)},
+    ]
+
+
+# --- patient explanation (Yoruba / Hausa / Igbo) --------------------------------
+
+EXPLAIN_SYSTEM = """Task: explain.
+You help a Nigerian primary health care worker explain a triage decision to the patient or \
+caregiver in {language}. Write 2 to 3 short, plain sentences in {language} only: what was \
+decided, why in simple words, and what the patient should do now. Use the decision exactly \
+as given; do not change it. Never name drugs or doses. Never say the patient certainly has \
+a disease. Reply with ONE JSON object: {"text": "<the explanation in {language}>"}"""
+
+
+def explain_messages(post: PostOutput, language: str) -> list[dict[str, str]]:
+    name = PATIENT_LANGUAGES[language]
+    payload = {
+        "decision": TRIAGE_LABELS[post.triage_level],
+        "why": post.triage_rationale,
+        "danger_signs": [h.label for h in post.danger_signs],
+        "next_steps": [a.text for a in post.actions][:3],
+    }
+    return [
+        {"role": "system", "content": EXPLAIN_SYSTEM.replace("{language}", name)},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+
+
+__all__ = [
+    "ATLAS_SYSTEM",
+    "ExplainOutput",
+    "atlas_messages",
+    "explain_messages",
+    "ComposeOutput",
+    "ReasonOutput",
+    "compose_messages",
+    "follow_up",
+    "full_text",
+    "intake_messages",
+    "reason_messages",
+]

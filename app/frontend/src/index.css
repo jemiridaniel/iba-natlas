@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+html {
+  -webkit-text-size-adjust: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f1f5f9;
+}
+
+/* Motion: short and subtle; disabled for users who ask for reduced motion. */
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { 0% { transform: scale(0.97); opacity: 0.4; } 100% { transform: none; opacity: 1; } }
+@keyframes slide-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fade-in { animation: fade-in 0.25s ease-out both; }
+.pop-in { animation: pop-in 0.3s ease-out both; }
+.slide-up { animation: slide-up 0.22s ease-out both; }
+.grow-x { transform-origin: left; animation: grow-x 0.5s ease-out both; }
+.spinner {
+  width: 14px; height: 14px; border-radius: 9999px;
+  border: 2px solid #99f6e4; border-top-color: #115e59; animation: spin 0.8s linear infinite;
+}
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .pop-in, .slide-up, .grow-x, .spinner { animation: none; }
+}
+
+/* #print-root (see index.html) is a sibling of the app's #root, not a descendant. The
+   referral note portals into it (PrintableNote in ResultCard.tsx) so that on print, the
+   entire app can collapse to nothing and the note renders in ordinary document flow at the
+   top of page 1 -- not wherever it happened to be scrolled to. A visibility-only approach
+   (hiding #root's content but leaving its box in flow) pushed the note pages deep into the
+   document instead, since Chrome paginates print output from the top of the real layout. */
+#print-root { display: none; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; }
+  /* Collapses all app chrome in one step: header, buttons, chips, input box, footer bar. */
+  #root, #launch { display: none !important; }
+  #print-root {
+    display: block !important;
+    background: #fff;
+    color: #000;
+  }
+  /* PHC printers are usually monochrome: force true black/white regardless of any on-screen
+     colour utility class, so urgency reads through border weight, not colour. */
+  #print-root * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  /* Never split a labelled section, the banner or the signature block across a page break. */
+  .print-block { break-inside: avoid; page-break-inside: avoid; }
+}

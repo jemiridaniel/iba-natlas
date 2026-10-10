@@ -54,6 +54,19 @@ python -m natlas.score results/preds_base.jsonl results/preds_ft.jsonl          
 
 Or run `natlas/kaggle_iba_atlas.ipynb` on a free Kaggle T4.
 
+## The app: Ibà on N-ATLAS
+
+[`app/`](app/) is the Ibà fever-triage copilot running entirely on N-ATLaS: intake, outbreak
+extraction, guideline-grounded reasoning and the referral note use base N-ATLaS; Ibà-ATLAS adds an
+independent triage that can only raise urgency; and the patient gets a plain explanation in
+Yorùbá, Hausa or Igbo. Deterministic danger-sign rules and a dose table that the model can never
+override stay in place. Setup: [app/README.md](app/README.md#running-on-n-atlas).
+
+| Notebook | What it does |
+|---|---|
+| `natlas/kaggle_iba_atlas.ipynb` | Fine-tune and benchmark (base vs Ibà-ATLAS) |
+| `natlas/kaggle_serve_demo.ipynb` | vLLM serving N-ATLaS + adapter, the app, and a public demo link |
+
 ## Licence and attribution
 
 Model derived from N-ATLaS and released under the N-ATLaS Terms of Use. Built on N-ATLaS by
