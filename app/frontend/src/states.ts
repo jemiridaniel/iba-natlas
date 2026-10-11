@@ -11,7 +11,7 @@ const KEY = "iba.state";
 const LANG_KEY = "iba.patientLanguage";
 
 export const PATIENT_LANGUAGES = [
-  { value: "", label: "Not needed" },
+  { value: "", label: "No" },
   { value: "yo", label: "Yorùbá" },
   { value: "ha", label: "Hausa" },
   { value: "ig", label: "Igbo" },

@@ -190,17 +190,29 @@ export default function App() {
                     English or Pidgin. Age, days of fever, RDT result and any worrying signs. No names.
                   </p>
                   {!region && <p className="mt-2 text-sm font-semibold text-amber-800">Pick the patient's state above so Ibà can check local outbreaks.</p>}
-                  <label className="mt-3 flex flex-wrap items-center gap-2 text-[15px]">
-                    <span className="font-medium text-slate-700">Explain to the patient in</span>
-                    <select
-                      value={language}
-                      onChange={(e) => { setLanguage(e.target.value); saveLanguage(e.target.value); }}
-                      className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-base"
-                      aria-label="Patient explanation language"
-                    >
-                      {PATIENT_LANGUAGES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-                    </select>
-                  </label>
+                  <fieldset className="mt-4 border-t border-slate-100 pt-3">
+                    <legend className="sr-only">Patient explanation language</legend>
+                    <p className="text-sm font-semibold text-slate-700">Also explain it to the patient in</p>
+                    <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Patient explanation language">
+                      {PATIENT_LANGUAGES.map((l) => {
+                        const on = language === l.value;
+                        return (
+                          <button
+                            key={l.value || "none"}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            onClick={() => { setLanguage(l.value); saveLanguage(l.value); }}
+                            className={`min-h-10 rounded-full border px-4 text-[15px] font-semibold transition active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-1 ${
+                              on ? "border-teal-800 bg-teal-800 text-white" : "border-teal-300 bg-white text-teal-900"
+                            }`}
+                          >
+                            {l.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
                 </div>
                 <div>
                   <p className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">Try a demo case</p>
