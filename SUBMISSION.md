@@ -128,10 +128,10 @@ decision is protected by rules and Ibà-ATLAS, and a clinician always decides.
 
 ## 8. Team
 
-| Name | Role | Affiliation |
-|---|---|---|
-| Jemiri Daniel Taiwo | ML engineering, data, app | HeyPulse Technologies; MSc Information Management, Ahmadu Bello University |
-| Amos Oluwasegun Oluba, B.Pharm, PharmD, MPSN | Clinical Lead: label review, clinical safety | Clinical Pharmacist, Federal Medical Centre, Epe, Lagos State |
+| Name | Role | Affiliation | GitHub |
+|---|---|---|---|
+| Jemiri Daniel Taiwo | ML engineering, data, app | HeyPulse Technologies; MSc Information Management, Ahmadu Bello University | [@jemiridaniel](https://github.com/jemiridaniel) |
+| Amos Oluwasegun Oluba, B.Pharm, PharmD, MPSN | Clinical Lead: label review, clinical safety | Clinical Pharmacist, Federal Medical Centre, Epe, Lagos State | [@AmazingAmos](https://github.com/AmazingAmos) |
 
 Prior work: Ibà fever-triage copilot (Nebius × NVIDIA hackathon build, Nemotron); malaria-llm-cdss,
 an explainable malaria decision-support study.
