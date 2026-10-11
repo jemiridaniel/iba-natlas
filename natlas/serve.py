@@ -10,14 +10,16 @@ A fallback for GPUs or environments where vLLM is not available (e.g. Kaggle T4s
     python -m natlas.serve --load-4bit            # one 16 GB GPU
 
 One model instance serves both names: the adapter is switched off for base requests. Requests
-run one at a time (a lock), greedy when temperature is 0. `response_format` is accepted but not
-enforced; the Ibà client validates every reply against its schema and retries once, so run the
-app with LLM_STRUCTURED_OUTPUT=off against this server.
+run one at a time (a lock), greedy when temperature is 0. A `response_format` of type
+`json_schema` constrains decoding to that schema (lm-format-enforcer), like vLLM's structured
+outputs, so run the app with LLM_STRUCTURED_OUTPUT=json_schema. Other response formats are
+accepted and ignored.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import threading
 import time
 import uuid
@@ -29,6 +31,11 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+try:  # optional: schema-constrained decoding
+    from natlas.constrain import allowed_tokens_fn, normalise_json, tokenizer_data
+except ImportError:  # pragma: no cover
+    tokenizer_data = None
 
 
 class Message(BaseModel):
@@ -44,6 +51,17 @@ class ChatRequest(BaseModel):
     response_format: dict[str, Any] | None = None
 
     model_config = {"extra": "ignore"}
+
+
+def _is_json(text: str) -> bool:
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return False
+    try:
+        json.loads(text[start : end + 1])
+        return True
+    except ValueError:
+        return False
 
 
 def load(base: str, adapter: str | None, adapter_name: str, load_4bit: bool):
@@ -65,7 +83,9 @@ def load(base: str, adapter: str | None, adapter_name: str, load_4bit: bool):
     return tok, model
 
 
-def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: int) -> FastAPI:
+def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: int,
+              unconstrained: frozenset[str] = frozenset()) -> FastAPI:
+    """`unconstrained`: schema titles to generate freely even when a json_schema is sent."""
     app = FastAPI(title="N-ATLaS server")
     lock = threading.Lock()
     stop_ids = [tok.eos_token_id]
@@ -73,6 +93,19 @@ def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: i
     if isinstance(eot, int) and eot != tok.unk_token_id:
         stop_ids.append(eot)
     names = [base_id] + ([adapter_name] if adapter_name else [])
+    # Built once: maps every vocabulary token for the enforcer (a few seconds for 128K tokens).
+    enforcer_data = None
+    if tokenizer_data is not None:
+        t0 = time.perf_counter()
+        enforcer_data = tokenizer_data(tok, stop_ids)
+        print(f"schema enforcement ready ({time.perf_counter() - t0:.0f}s)", flush=True)
+    else:
+        print("lm-format-enforcer not installed: response_format is ignored", flush=True)
+
+    def schema_of(rf: dict[str, Any] | None) -> dict[str, Any] | None:
+        if not rf or rf.get("type") != "json_schema":
+            return None
+        return (rf.get("json_schema") or {}).get("schema")
 
     @app.get("/health")
     def health() -> dict:
@@ -96,18 +129,30 @@ def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: i
         greedy = not req.temperature
         use_adapter = adapter_name is not None and req.model == adapter_name
         ctx = nullcontext() if use_adapter or adapter_name is None else model.disable_adapter()
+        schema = schema_of(req.response_format)
+        constrain = {}
+        if schema is not None and schema.get("title") in unconstrained:
+            schema = None
+        if schema is not None and enforcer_data is not None:
+            constrain["prefix_allowed_tokens_fn"] = allowed_tokens_fn(enforcer_data, schema)
         start = time.perf_counter()
         with lock, ctx, torch.no_grad():
             out = model.generate(
                 **enc.to(model.device), max_new_tokens=max_new, do_sample=not greedy,
                 temperature=None if greedy else req.temperature, top_p=None,
-                eos_token_id=stop_ids, pad_token_id=tok.pad_token_id)
+                eos_token_id=stop_ids, pad_token_id=tok.pad_token_id, **constrain)
         new = out[0][n_prompt:]
         text = tok.decode(new, skip_special_tokens=True)
+        if constrain:
+            text = normalise_json(text)
         hit_stop = len(new) > 0 and int(new[-1]) in stop_ids
         finish = "stop" if hit_stop or len(new) < max_new else "length"
         print(f"{req.model} prompt={n_prompt} out={len(new)} {time.perf_counter() - start:.1f}s "
-              f"finish={finish}", flush=True)
+              f"finish={finish} schema={(schema or {}).get('title', '-') if constrain else '-'}",
+              flush=True)
+        if req.response_format and not _is_json(text):
+            # Synthetic demo cases only: a preview helps diagnose a step that fails to parse.
+            print(f"  not valid JSON, starts: {text[:300]!r}", flush=True)
         return {
             "id": f"chatcmpl-{uuid.uuid4().hex[:12]}", "object": "chat.completion",
             "created": int(time.time()), "model": req.model,
@@ -128,12 +173,15 @@ def main() -> None:
     ap.add_argument("--no-adapter", action="store_true")
     ap.add_argument("--load-4bit", action="store_true")
     ap.add_argument("--max-context", type=int, default=8192)
+    ap.add_argument("--unconstrained", default="ExplainOutput",
+                    help="comma-separated schema titles to generate without constraints")
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapter = None if args.no_adapter else args.adapter
     tok, model = load(args.base, adapter, args.adapter_name, args.load_4bit)
-    app = build_app(tok, model, args.base, args.adapter_name if adapter else None, args.max_context)
+    free = frozenset(t.strip() for t in args.unconstrained.split(",") if t.strip())
+    app = build_app(tok, model, args.base, args.adapter_name if adapter else None, args.max_context, free)
     print(f"serving {args.base}" + (f" + {args.adapter_name}" if adapter else "") + f" on :{args.port}",
           flush=True)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
