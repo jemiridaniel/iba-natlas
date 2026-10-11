@@ -33,7 +33,7 @@ from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 try:  # optional: schema-constrained decoding
-    from natlas.constrain import allowed_tokens_fn, normalise_json, tokenizer_data
+    from natlas.constrain import allowed_tokens_fn, cap_schema, normalise_json, tokenizer_data
 except ImportError:  # pragma: no cover
     tokenizer_data = None
 
@@ -84,7 +84,8 @@ def load(base: str, adapter: str | None, adapter_name: str, load_4bit: bool):
 
 
 def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: int,
-              unconstrained: frozenset[str] = frozenset()) -> FastAPI:
+              unconstrained: frozenset[str] = frozenset(), max_string: int = 200,
+              max_items: int = 3) -> FastAPI:
     """`unconstrained`: schema titles to generate freely even when a json_schema is sent."""
     app = FastAPI(title="N-ATLaS server")
     lock = threading.Lock()
@@ -134,7 +135,8 @@ def build_app(tok, model, base_id: str, adapter_name: str | None, max_context: i
         if schema is not None and schema.get("title") in unconstrained:
             schema = None
         if schema is not None and enforcer_data is not None:
-            constrain["prefix_allowed_tokens_fn"] = allowed_tokens_fn(enforcer_data, schema)
+            constrain["prefix_allowed_tokens_fn"] = allowed_tokens_fn(
+                enforcer_data, cap_schema(schema, max_string, max_items))
         start = time.perf_counter()
         with lock, ctx, torch.no_grad():
             out = model.generate(
@@ -173,6 +175,10 @@ def main() -> None:
     ap.add_argument("--no-adapter", action="store_true")
     ap.add_argument("--load-4bit", action="store_true")
     ap.add_argument("--max-context", type=int, default=8192)
+    ap.add_argument("--max-string", type=int, default=200,
+                    help="maxLength added to free-text fields of constrained schemas")
+    ap.add_argument("--max-items", type=int, default=3,
+                    help="maxItems added to arrays of constrained schemas")
     ap.add_argument("--unconstrained", default="ExplainOutput",
                     help="comma-separated schema titles to generate without constraints")
     ap.add_argument("--host", default="0.0.0.0")
@@ -181,7 +187,8 @@ def main() -> None:
     adapter = None if args.no_adapter else args.adapter
     tok, model = load(args.base, adapter, args.adapter_name, args.load_4bit)
     free = frozenset(t.strip() for t in args.unconstrained.split(",") if t.strip())
-    app = build_app(tok, model, args.base, args.adapter_name if adapter else None, args.max_context, free)
+    app = build_app(tok, model, args.base, args.adapter_name if adapter else None, args.max_context,
+                    free, args.max_string, args.max_items)
     print(f"serving {args.base}" + (f" + {args.adapter_name}" if adapter else "") + f" on :{args.port}",
           flush=True)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")

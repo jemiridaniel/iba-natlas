@@ -10,10 +10,10 @@ which Transformers 5 removed, so this re-implements its two small helpers agains
 
 from __future__ import annotations
 
+import copy
 import functools
-from typing import Any
-
 import json
+from typing import Any
 
 from lmformatenforcer import (
     CharacterLevelParserConfig,
@@ -51,6 +51,32 @@ def tokenizer_data(tok, stop_ids: list[int] | None = None) -> TokenEnforcerToken
 
 # Whitespace runs between JSON tokens: enough for pretty-printing, not for endless padding.
 _CONFIG = CharacterLevelParserConfig(max_consecutive_whitespaces=6)
+
+
+def cap_schema(schema: dict[str, Any], max_string: int, max_items: int) -> dict[str, Any]:
+    """Copy of `schema` with a maxLength on free-text strings and a maxItems on arrays.
+
+    Without limits an 8B model can keep writing one field until max_tokens and never close the
+    JSON (seen with N-ATLaS on Ibà's ReasonOutput: a 2,048-token rationale). Enums and fields
+    that already set a limit are left alone.
+    """
+    out = copy.deepcopy(schema)
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            kind = node.get("type")
+            if kind == "string" and "enum" not in node and "maxLength" not in node:
+                node["maxLength"] = max_string
+            if kind == "array" and "maxItems" not in node:
+                node["maxItems"] = max_items
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(out)
+    return out
 
 
 def allowed_tokens_fn(data: TokenEnforcerTokenizerData, schema: dict[str, Any]):
