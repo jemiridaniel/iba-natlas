@@ -2,6 +2,9 @@
 
 import json
 import logging
+import queue
+import threading
+from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
@@ -90,6 +93,44 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
 
+# Seconds of silence before a keep-alive comment. Proxies and tunnels (e.g. Cloudflare) drop
+# connections that send nothing for ~100 s; a slow reasoning step on a small GPU can exceed that.
+HEARTBEAT_S = 15.0
+_DONE = object()
+
+
+def with_heartbeat(chunks: Iterator[str], interval: float | None = None) -> Iterator[str]:
+    """Yield `chunks`, inserting an SSE comment (": keep-alive") after each silent interval.
+
+    The producer runs in a worker thread so a long pipeline step cannot block the heartbeat.
+    Browsers' EventSource and Ibà's own parser ignore comment lines.
+    """
+    interval = HEARTBEAT_S if interval is None else interval
+    q: queue.Queue = queue.Queue()
+
+    def produce() -> None:
+        try:
+            for chunk in chunks:
+                q.put(chunk)
+        except BaseException as exc:  # surfaced in the consumer below
+            q.put(exc)
+        finally:
+            q.put(_DONE)
+
+    threading.Thread(target=produce, daemon=True).start()
+    while True:
+        try:
+            item = q.get(timeout=interval)
+        except queue.Empty:
+            yield ": keep-alive\n\n"
+            continue
+        if item is _DONE:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        yield item
+
+
 @app.post("/triage/stream")
 def triage_stream(request: TriageRequest) -> StreamingResponse:
     """Server-sent events: one event per pipeline node (intake, rules_pre, retrieve,
@@ -98,7 +139,7 @@ def triage_stream(request: TriageRequest) -> StreamingResponse:
     deps = get_deps()
     events = (_sse(event, data) for event, data in stream_triage(request, deps))
     return StreamingResponse(
-        events,
+        with_heartbeat(events),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
