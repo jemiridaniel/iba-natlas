@@ -354,9 +354,19 @@ def rules_post(state: TriageState, deps: Deps) -> dict[str, Any]:
                 f"{rationale}"
             )
         elif level != out.triage_level:
+            # Credit the layer that found the signs: text rules, or Ibà-ATLAS (e.g. a note in
+            # Yorùbá, which the English/Pidgin rules cannot read).
+            only_atlas = bool(rules.danger_signs) and all(
+                h.source == "llm_atlas" for h in rules.danger_signs
+            )
+            by = (
+                "danger signs flagged by Ibà-ATLAS, the fine-tuned N-ATLAS triage model"
+                if only_atlas
+                else "safety rules"
+            )
             rationale = (
                 f"Raised from {TRIAGE_LABELS[out.triage_level]} to {TRIAGE_LABELS[level]} by "
-                f"safety rules ({'; '.join(rules.reasons)}). {rationale}"
+                f"{by} ({'; '.join(rules.reasons)}). {rationale}"
             )
         differential = [
             DifferentialItem(

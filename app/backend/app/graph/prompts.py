@@ -332,7 +332,9 @@ EXPLAIN_SYSTEM = """Task: explain.
 You help a Nigerian primary health care worker explain a triage decision to the patient or \
 caregiver in {language}. Write 2 to 3 short, plain sentences in {language} only: what was \
 decided, why in simple words, and what the patient should do now. Use the decision exactly \
-as given; do not change it. Never name drugs or doses. Never say the patient certainly has \
+as given; do not change it. Never recommend or name any medicine, drug, dose or treatment: \
+the health worker handles treatment. If the decision is a referral, tell them to go to the \
+referral facility now (or within 24 hours, as decided). Never say the patient certainly has \
 a disease. Reply with ONE JSON object: {"text": "<the explanation in {language}>"}"""
 
 

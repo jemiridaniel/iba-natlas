@@ -203,3 +203,27 @@ def test_injected_client_serves_both(tmp_path: Path) -> None:
     fake = SimpleNamespace()
     c = LLMClient(make_settings(tmp_path), client=fake)
     assert c.client is fake and c.embed_client is fake
+
+
+def test_escalation_by_atlas_signs_is_credited_to_atlas(tmp_path: Path) -> None:
+    # A note the text rules cannot read (Yorùbá): only Ibà-ATLAS finds the danger sign.
+    reason = {**MALARIA_REASON, "triage_level": "refer_24h", "triage_rationale": "Refer soon."}
+    r, _ = _run(
+        tmp_path,
+        {
+            "triage_level": "refer_now",
+            "danger_signs": ["unable_to_drink_or_breastfeed"],
+            "malaria_risk": "high",
+            "reason": "Danger sign present: refer now.",
+        },
+        replies={"reason": reason},
+    )
+    assert r.triage_level == TriageLevel.REFER_NOW
+    assert "flagged by Ibà-ATLAS" in r.triage_rationale
+    assert "safety rules" not in r.triage_rationale
+
+
+def test_explain_prompt_forbids_treatment_advice() -> None:
+    from backend.app.graph.prompts import EXPLAIN_SYSTEM
+
+    assert "Never recommend or name any medicine" in EXPLAIN_SYSTEM
