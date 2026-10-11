@@ -1,5 +1,7 @@
 # Ibà-ATLAS: N-ATLAS fine-tuned for fever triage in Nigerian primary care
 
+**[Demo video (3 min)](https://youtu.be/ulfVydMxz34)** · Model: [Hugging Face](https://huggingface.co/jemiridaniel/Iba-ATLAS-8B-LoRA-Powered-by-Awarri) · Notebooks: [train + benchmark](https://www.kaggle.com/code/certifiedsurvey/iba-natlas), [live demo](https://www.kaggle.com/code/certifiedsurvey/kaggle-serve-demo)
+
 Submission ([SUBMISSION.md](SUBMISSION.md)) for the **National AI Innovation Challenge 2026**, Problem Statement 3 (Sectoral
 Fine-Tuning), health sector.
 
@@ -104,8 +106,8 @@ override stay in place. Setup: [app/README.md](app/README.md#running-on-n-atlas)
 
 | Notebook | What it does |
 |---|---|
-| `natlas/kaggle_iba_atlas.ipynb` | Fine-tune and benchmark (base vs Ibà-ATLAS) |
-| `natlas/kaggle_serve_demo.ipynb` | Serves N-ATLaS + adapter (`natlas/serve.py`), the app, and a public demo link |
+| `natlas/kaggle_iba_atlas.ipynb` ([on Kaggle](https://www.kaggle.com/code/certifiedsurvey/iba-natlas)) | Fine-tune and benchmark (base vs Ibà-ATLAS) |
+| `natlas/kaggle_serve_demo.ipynb` ([on Kaggle](https://www.kaggle.com/code/certifiedsurvey/kaggle-serve-demo)) | Serves N-ATLaS + adapter (`natlas/serve.py`), the app, and a public demo link |
 
 ## Licence and attribution
 

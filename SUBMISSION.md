@@ -8,8 +8,9 @@ Problem Statement 3: Sectoral Fine-Tuning (Health)**
 | Repository | https://github.com/jemiridaniel/iba-natlas |
 | Model (LoRA adapter on N-ATLaS) | https://huggingface.co/jemiridaniel/Iba-ATLAS-8B-LoRA-Powered-by-Awarri |
 | Benchmark (raw outputs, every case) | [`results/`](results/) · scored by `python -m natlas.score` |
-| Live demo | Kaggle notebook `natlas/kaggle_serve_demo.ipynb` (serves the model + app, opens a public link) |
-| Video | _link to be added_ |
+| Demo video (3:21) | https://youtu.be/ulfVydMxz34 |
+| Training + benchmark notebook | https://www.kaggle.com/code/certifiedsurvey/iba-natlas |
+| Live demo notebook | https://www.kaggle.com/code/certifiedsurvey/kaggle-serve-demo (serves N-ATLaS + Ibà-ATLAS and the app on a free T4 x2, opens a public link) |
 
 ---
 
