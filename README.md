@@ -1,6 +1,6 @@
 # Ibà-ATLAS: N-ATLAS fine-tuned for fever triage in Nigerian primary care
 
-Submission for the **National AI Innovation Challenge 2026**, Problem Statement 3 (Sectoral
+Submission ([SUBMISSION.md](SUBMISSION.md)) for the **National AI Innovation Challenge 2026**, Problem Statement 3 (Sectoral
 Fine-Tuning), health sector.
 
 Ibà-ATLAS is [N-ATLaS](https://huggingface.co/NCAIR1/N-ATLaS) (Nigeria's open multilingual
