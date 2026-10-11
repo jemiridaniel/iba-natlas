@@ -38,7 +38,9 @@ signs (2/6 → 6/6) without over-triaging uncomplicated malaria (10/10 kept).
 
 **Caveat on method.** The *categories* added in v2 were chosen after seeing where v1 failed on
 the vignettes. No vignette text or near-copy was trained on, but the vignette set is therefore
-no longer a fully blind test for v2. A fresh, clinician-written test set is the next step.
+no longer a fully blind test for v2. A fresh, clinician-written synthetic test set is the next
+step; validation on real de-identified clinic cases follows only after ethics approval and NDPA
+compliance.
 
 **Remaining misses (v2, 11 of 61):** 7 suspected-Lassa cases where the gold label assumes an
 active outbreak in the patient's state. A text-only model cannot know that; in the app, the live
@@ -114,4 +116,4 @@ Model name carries "Powered by Awarri" as the Terms require. Code: MIT.
 ## Team
 
 - Jemiri Daniel Taiwo: ML engineering
-- (clinical lead to be confirmed)
+- Amos Oluwasegun Oluba, B.Pharm, PharmD, MPSN: Clinical Lead (Clinical Pharmacist, Federal Medical Centre, Epe, Lagos State)

@@ -74,9 +74,11 @@ No other general-purpose LLM generates any text. Guideline retrieval uses a text
 | Under-triage, 61 Nigerian vignettes | 31.1% | 44.3% | **18.0%** |
 | Under-triage, 211 Pidgin cases | 31.3% | 4.3% | **1.9%** |
 
-- **Real data:** 649 held-out de-identified hospital malaria admissions (never trained on), the
-  dataset from our malaria-llm-cdss study; 61 Nigerian fever vignettes (malaria, Lassa, cholera,
-  meningitis, paediatric danger signs, Pidgin).
+- **Data used:** 649 held-out records from a public, de-identified hospital malaria dataset
+  (Kaggle; never trained on), the dataset from our malaria-llm-cdss study; 61 synthetic Nigerian
+  fever vignettes (malaria, Lassa, cholera, meningitis, paediatric danger signs, Pidgin). No
+  patient data from Nigerian clinics was collected or used; every case in the app demo is
+  synthetic.
 - **Live end-to-end runs** on the deployed app (Kaggle T4 x2): complete assessments with live
   NCDC/WHO outbreak search, retrieved guideline passages with quote-verified citations, and patient
   explanations in Yorùbá.
@@ -113,8 +115,14 @@ decision is protected by rules and Ibà-ATLAS, and a clinician always decides.
 - Runs on modest hardware: an 8B model with a 168 MB adapter; demonstrated on free T4 GPUs.
 - Open source; standard OpenAI-compatible serving, so it can move to any GPU host or a
   government cloud.
-- Next steps: clinician-written validation set; fine-tuning the reasoning step; danger-sign
-  rules and tested input in Yorùbá, Hausa and Igbo; pilot with PHCs in one state.
+- Next steps, in order:
+  1. **Clinician-written synthetic test set:** new CHEW-style cases written and labelled by the
+     clinical lead, never seen in training (no patient data, so no ethics approval needed).
+  2. **Real-world validation:** de-identified clinic cases, only after ethics approval from a
+     health research ethics committee, compliance with the Nigeria Data Protection Act (NDPA)
+     2023 and facility consent, with a clinician's label for every case.
+  3. Fine-tuning the reasoning step; danger-sign rules and tested input in Yorùbá, Hausa and
+     Igbo; then a supervised pilot with PHCs in one state.
 - The N-ATLaS licence caps use at 1,000 active users per 30 days; a pilot fits, and larger roll-out
   would need a licence from Awarri.
 
@@ -123,7 +131,7 @@ decision is protected by rules and Ibà-ATLAS, and a clinician always decides.
 | Name | Role | Affiliation |
 |---|---|---|
 | Jemiri Daniel Taiwo | ML engineering, data, app | HeyPulse Technologies; MSc Information Management, Ahmadu Bello University |
-| _Dr. Oluba O. Amos (to confirm)_ | Clinical lead: label review, clinical safety | _affiliation_ |
+| Amos Oluwasegun Oluba, B.Pharm, PharmD, MPSN | Clinical Lead: label review, clinical safety | Clinical Pharmacist, Federal Medical Centre, Epe, Lagos State |
 
 Prior work: Ibà fever-triage copilot (Nebius × NVIDIA hackathon build, Nemotron); malaria-llm-cdss,
 an explainable malaria decision-support study.
