@@ -49,6 +49,7 @@ from backend.app.rules.danger_signs import (
 from backend.app.rules.dosing import doses_for, guideline_notes, strip_doses
 from backend.app.rules.followup import merge_advice, treat_monitor_advice
 from backend.app.rules.grounding import patient_fact_supported, verify_quote
+from backend.app.rules.intake_check import check_intake
 from backend.app.schemas import (
     TRIAGE_LABELS,
     ActionItem,
@@ -104,6 +105,7 @@ def intake(state: TriageState, deps: Deps) -> dict[str, Any]:
     case = case.model_copy(
         update={"state": req.state or case.state, "lga": req.lga or case.lga, "raw_text": text}
     )
+    case, _ = check_intake(case, text)  # explicit age / fever days / RDT in the note win
     missing = missing_information(case)
     case = case.model_copy(update={"missing_fields": missing})
     ask = not (req.answers or req.skip_questions)

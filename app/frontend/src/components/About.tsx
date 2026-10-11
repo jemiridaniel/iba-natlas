@@ -41,11 +41,12 @@ export function About() {
         <>
           <section>
             <h2 className="mb-1 text-lg font-bold">Models</h2>
-            <p className="text-sm text-slate-600">NVIDIA Nemotron models on Nebius Token Factory.</p>
+            <p className="text-sm text-slate-600">N-ATLaS, Nigeria’s open multilingual model, and Ibà-ATLAS, our triage model fine-tuned from it. Powered by Awarri.</p>
             <ul className="mt-1 space-y-0.5 text-sm">
               <li>Understanding the case &amp; outbreak reports: <code>{meta.models.fast || "—"}</code> (reasoning {meta.reasoning.intake ? "on" : "off"})</li>
               <li>Clinical reasoning: <code>{meta.models.reason || "—"}</code> (reasoning {meta.reasoning.reason ? "on" : "off"})</li>
               <li>Summary &amp; referral note: <code>{meta.models.mid || "—"}</code></li>
+              {meta.models.atlas && <li>Independent triage check (can only raise urgency): <code>{meta.models.atlas}</code></li>}
               <li>Guideline search embeddings: <code>{meta.models.embed || "—"}</code> ({meta.index.chunks} passages indexed)</li>
             </ul>
           </section>

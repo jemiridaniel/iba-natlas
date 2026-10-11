@@ -69,6 +69,7 @@ def meta() -> dict:
             "fast": cfg.model_fast,
             "mid": cfg.model_mid,
             "reason": cfg.model_reason,
+            "atlas": cfg.model_atlas or "",
             "embed": cfg.model_embed,
         },
         "reasoning": {
