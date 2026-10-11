@@ -20,7 +20,7 @@ Nemotron build for the Nebius x NVIDIA hackathon is the separate `iba-triage` re
 that repo from here.
 
 ## Hard rules (never break these)
-1. **All text generation uses N-ATLaS** (`NCAIR1/N-ATLaS`) or the Ibà-ATLAS adapter derived from it, served by an OpenAI-compatible server (`CHAT_BASE_URL`, vLLM). Never wrap another general-purpose LLM: the challenge disqualifies that. Embeddings for guideline retrieval may use Token Factory (`EMBED_BASE_URL` unset).
+1. **All text generation uses N-ATLaS** (`NCAIR1/N-ATLaS`) or the Ibà-ATLAS adapter derived from it, served by an OpenAI-compatible server (`CHAT_BASE_URL`: vLLM, or `natlas/serve.py`). Never wrap another general-purpose LLM: the challenge disqualifies that. Embeddings for guideline retrieval may use Token Factory (`EMBED_BASE_URL` unset).
 1a. **Ibà-ATLAS can only raise urgency**, like the rules. Its system prompt in `graph/prompts.py` must stay identical to `natlas/prompts.py` (a test checks this).
 2. **Danger signs are detected by deterministic rules** (`backend/app/rules/danger_signs.py`), both before and after the LLM. The LLM can never downgrade an escalation triggered by a rule.
 3. **The LLM never generates drug doses.** Doses come only from the weight-band lookup table in `backend/app/rules/dosing.py`, which is sourced from the national guideline and cited.
@@ -36,7 +36,7 @@ that repo from here.
 - **Backend:** Python 3.12, FastAPI, LangGraph, Pydantic v2, `openai` SDK (pointed at Token Factory), `tavily-python`, NumPy for the vector index (no external vector DB).
 - **Frontend:** React + Vite + TypeScript + Tailwind, installable PWA, chat-style UI. Served as static files by FastAPI in production.
 - **Tooling:** `uv` for Python deps, `ruff` + `pytest`; `pnpm` for the frontend.
-- **Serving:** vLLM (OpenAI API) with N-ATLaS + the Ibà-ATLAS LoRA; `natlas/kaggle_serve_demo.ipynb` runs it all on a Kaggle T4 x2 for demos.
+- **Serving:** any OpenAI-compatible server with N-ATLaS + the Ibà-ATLAS LoRA: vLLM where it installs, or `natlas/serve.py` (Transformers + PEFT, no schema enforcement: use `LLM_STRUCTURED_OUTPUT=off`). `natlas/kaggle_serve_demo.ipynb` runs `serve.py`, the app and a public link on a Kaggle T4 x2.
 
 ## Layout
 ```

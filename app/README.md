@@ -81,8 +81,12 @@ cp .env.natlas.example .env        # add NEBIUS_API_KEY (embeddings) and TAVILY_
 uv sync && uv run uvicorn backend.app.main:app
 ```
 
-No GPU of your own? `../natlas/kaggle_serve_demo.ipynb` runs vLLM, the app and a temporary
-public link on a free Kaggle T4 x2.
+Where vLLM won't install (e.g. Kaggle's T4s), `python -m natlas.serve` from the repo root is a
+small OpenAI-compatible server on Transformers + PEFT that serves both `NCAIR1/N-ATLaS` and
+`iba-atlas` from one model instance; run the app with `LLM_STRUCTURED_OUTPUT=off` against it (every
+reply is still schema-validated, with one retry and a fail-safe). No GPU of your own?
+`../natlas/kaggle_serve_demo.ipynb` runs it, the app and a temporary public link on a free Kaggle
+T4 x2.
 
 ## How we use NVIDIA Nemotron + Nebius Token Factory (original build)
 

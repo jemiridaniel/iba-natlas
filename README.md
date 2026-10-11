@@ -103,7 +103,7 @@ override stay in place. Setup: [app/README.md](app/README.md#running-on-n-atlas)
 | Notebook | What it does |
 |---|---|
 | `natlas/kaggle_iba_atlas.ipynb` | Fine-tune and benchmark (base vs Ibà-ATLAS) |
-| `natlas/kaggle_serve_demo.ipynb` | vLLM serving N-ATLaS + adapter, the app, and a public demo link |
+| `natlas/kaggle_serve_demo.ipynb` | Serves N-ATLaS + adapter (`natlas/serve.py`), the app, and a public demo link |
 
 ## Licence and attribution
 

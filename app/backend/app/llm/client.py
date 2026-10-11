@@ -42,7 +42,7 @@ logger = logging.getLogger("iba.llm")
 
 
 class LLMError(RuntimeError):
-    """Token Factory call failed. Callers must fail safe (escalate to refer)."""
+    """model call failed. Callers must fail safe (escalate to refer)."""
 
 
 class LLMParseError(LLMError):
@@ -263,7 +263,7 @@ class LLMClient:
         try:
             resp = self.client.chat.completions.create(model=model, messages=messages, **params)
         except openai.OpenAIError as exc:
-            raise LLMError(f"{step}: Token Factory call failed ({_describe(exc)})") from exc
+            raise LLMError(f"{step}: model call failed ({_describe(exc)})") from exc
         latency_ms = (time.perf_counter() - start) * 1000
         if self.on_response is not None:
             self.on_response(resp)
@@ -364,7 +364,7 @@ class LLMClient:
         try:
             resp = self.embed_client.embeddings.create(model=model, input=texts)
         except openai.OpenAIError as exc:
-            raise LLMError(f"{step}: Token Factory call failed ({_describe(exc)})") from exc
+            raise LLMError(f"{step}: model call failed ({_describe(exc)})") from exc
         latency_ms = (time.perf_counter() - start) * 1000
 
         entry = {
