@@ -33,6 +33,11 @@ from backend.app.schemas import (
 
 D = DangerSignCode
 
+# Version of the clinician rules in this module, reported by GET /v1/version and with every
+# /v1/assess result. Bump it whenever a rule changes what it escalates.
+CLINICIAN_RULES_VERSION = "clinician-2026.10.24"
+CLINICIAN_RULES_STATUS = "draft: thresholds pending clinician review (docs/CLINICAL_REVIEW.md)"
+
 # Shared fragments
 _CANT = r"(?:unable|not\s+able|can(?:no|')?t|can\s+not|could\s*n[o']?t|no\s+fit)"
 _DRUG_CTX = (

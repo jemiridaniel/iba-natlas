@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from backend.app.api_v1 import router as api_v1
 from backend.app.config import get_settings
 from backend.app.graph.pipeline import build_deps, failsafe_result, run_triage, stream_triage
 from backend.app.graph.state import Deps, TriageRequest
@@ -22,6 +23,10 @@ settings = get_settings()
 logging.basicConfig(level=settings.log_level)
 
 app = FastAPI(title="Ibà", description="Fever-triage decision support. Not a diagnosis.")
+
+
+# Versioned, key-protected API for other apps (deterministic rules only).
+app.include_router(api_v1)
 
 
 @lru_cache

@@ -69,7 +69,8 @@ class DangerSignHit(BaseModel):
     code: DangerSignCode
     # "rule": matched by deterministic text rules; "llm_*": flagged by a model step.
     # "llm_atlas": flagged by Ibà-ATLAS, the fine-tuned N-ATLAS triage model.
-    source: Literal["rule", "llm_intake", "llm_reason", "llm_atlas"]
+    # "answer": reported as a structured yes/no answer (the /v1 API).
+    source: Literal["rule", "llm_intake", "llm_reason", "llm_atlas", "answer"]
     evidence: str | None = None
 
     @computed_field

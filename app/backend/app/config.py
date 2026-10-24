@@ -49,6 +49,10 @@ class Settings(BaseSettings):
 
     tavily_api_key: SecretStr | None = None
 
+    # API keys for the /v1 API, comma-separated (e.g. one per client app). Empty = /v1 is
+    # closed: every request gets 503, never an open API by accident.
+    iba_api_keys: SecretStr = SecretStr("")
+
     app_env: Literal["dev", "prod"] = "dev"
     cache_dir: Path = Path(".cache")
     cache_enabled: bool | None = None  # None -> on in dev, off in prod

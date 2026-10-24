@@ -123,6 +123,22 @@ only after review. Where a live outbreak signal should change the expected triag
 carries `gold_live` overrides (currently la-06: partial Lassa features → Refer within 24h on
 baseline data, Refer now with a live signal).
 
+## 7. Self-report rules for the public (Pending: Dr. Amos)
+
+Code: [backend/app/rules/self_report.py](../backend/app/rules/self_report.py), served by
+`POST /v1/assess` with `mode=self_report` (e.g. to the Magana reading app). A member of the
+public answers yes/no; the answer is only a priority and a message code, never a condition.
+- **Any** of the ten danger signs (plain-language versions of the clinician danger signs,
+  one each) -> **emergency**: "go to the nearest clinic now, or call 112".
+- Fever for **2 days or more** with no danger sign -> **urgent**: nurse calls back within 2 hours.
+  Is 2 days right? Should pregnancy, a child under 5, or age over 65 also make it urgent?
+- Otherwise -> **routine**: nurse calls back during working hours.
+- Wording of every question in English, Hausa, Yoruba and Igbo:
+  [backend/app/questions.py](../backend/app/questions.py). The Hausa, Yoruba and Igbo text is a
+  draft and also needs a native speaker's check.
+
+On sign-off, bump `SELF_REPORT_RULES_VERSION` and change `SELF_REPORT_STATUS`.
+
 ## Sign-off
 
 | Item | Reviewer | Date | Decision / changes |
@@ -133,3 +149,4 @@ baseline data, Refer now with a live signal).
 | 4. Endemic-state baseline | | | |
 | 5. Treat & monitor advice | | | |
 | 6. Eval vignettes | | | |
+| 7. Self-report rules (Dr. Amos) | | | |

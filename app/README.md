@@ -122,6 +122,32 @@ Danger signs are detected by deterministic rules
 words (English + Pidgin) and over the intake model's structured output. Any sign sets a
 **Refer now** floor that the LLM can never lower. Drug doses never come from the LLM.
 
+## API for other apps (/v1)
+
+A versioned, key-protected API over the deterministic rules only (no model call, so it is
+instant, free and repeatable). Send `X-API-Key` with a key listed in `IBA_API_KEYS`
+(comma-separated); with no keys configured every `/v1` route returns 503.
+
+| Route | What it does |
+|---|---|
+| `GET /v1/health` | Liveness (`/health` stays open for the container health check) |
+| `GET /v1/version` | Service, API and rule versions, with each rule set's review status |
+| `GET /v1/questions?mode=clinician\|self_report&lang=en\|ha\|yo\|ig` | Fixed question wording; Hausa, Yoruba and Igbo are drafts |
+| `POST /v1/assess` | `{"mode": ..., "answers": {question_id: value}}` |
+
+- **self_report** (members of the public) returns only `priority` (`emergency`, `urgent`,
+  `routine`), a `message` code and `rule_version`: no diagnosis or condition names. These rules
+  are **pending clinical sign-off by Dr. Amos** (docs/CLINICAL_REVIEW.md, item 7).
+- **clinician** runs the danger-sign, Lassa (endemic baseline) rules and returns the triage
+  level, danger-sign codes and findings, marked `basis: rules_only`.
+- Answers are validated strictly and never logged; only mode and priority are.
+
+```bash
+curl -H "X-API-Key: $KEY" "http://localhost:8000/v1/questions?mode=self_report&lang=ha"
+curl -H "X-API-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"mode":"self_report","answers":{"fever":true,"fever_days":3}}' http://localhost:8000/v1/assess
+```
+
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you).
